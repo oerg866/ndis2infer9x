@@ -1,6 +1,6 @@
 # NDIS2INFER9X
 
-(C) 2024 Eric Voirin (oerg866@googlemail.com)
+(C) 2024-2026 Eric Voirin (oerg866@googlemail.com)
 
 This is a small script that allows you to associate one or more PCI hardware IDs with any existing DOS NDIS 2 driver and generates a Windows 9x-style INF file for it. 
 
@@ -9,35 +9,41 @@ This allows the Windows 9x hardware installation wizard / hardware detection to 
 ## Requirements
 
 * A Python interpreter (duh)
-* A NDIS2 driver containing
-    * a .DOS driver file
-    * a .NIF file containing the driver's metadata
+* A NDIS2 driver containing an NDIS2 `OEMSETUP.INF` file
 
 ## Usage
 
-`python3 ndis2infer9x.py --nif [PATH_TO_NIF_FILE] --out [OUTPUT_INF_FILE_NAME] --id xxxx:yyyy --id wwww:zzzz ...`
+`python3 ndis2infer9x.py --inf [OEMSETUP_INF] --out [OUTPUT_INF_FILE_NAME] --id xxxx:yyyy:"name" --id wwww:zzzz:"name2" ...`
 
 Where
 
-* `--nif` points to the input NIF file
+* `--inf` points to the input OEMSETUP.INF file
 * `--out` is the filename for the generated INF file
-* `--id` is a PCI ID in the format of xxxx:yyyy where xxxx is the PCI Vendor ID and yyyy is the PCI Device ID in hexadecimal format.
+* `--id` is a PCI ID in the format of `xxxx:yyyy:"name"` where xxxx is the PCI Vendor ID and yyyy is the PCI Device ID in hexadecimal format.
+    * The `:"name"` part is optional and can be used to override the default device name pullled from `OEMSETUP.INF`
     * This parameter can be repeated multiple times for as many different IDs you wish to associate with this driver.
 
 ### Example
 
-`python3 ndis2infer9x.py --nif ATL1C.NIF --out NETATL1C.INF --id 1969:1063`
+`python3 ndis2infer9x.py --nif ATL1C.NIF --out NETATL1C.INF --id 1969:1063:"Atheros L1 PCIe Ethernet"`
+
+### Intel-Style OEMSETUP files
+
+Intel network drivers provide a `[PCI]` section with `VENDOR_ID` and a `DEVICE_ID` list.
+
+The INF parser will parse it if present and add these IDs to the INF file automatically.
 
 ## Why NDIS2?
 
 There is a quite strange situation here:
 
-* DOS / MS LAN Manager / Windows for Workgroups 3.1 uses NDIS 2.
+* DOS / MS LAN Manager / Microsoft Network Client for DOS uses NDIS 2.
+* Windows for Workgroups 3.1 / NT 3.x uses NDIS 3.0
 * Windows 95 uses NDIS 3.1 / NDIS 4.0
 * Windows 98 uses NDIS 4.1
 * Windows 98SE / ME uses NDIS 5.0
 
-Windows 9x as successors of NDIS 2 have backwards compatibility to NDIS 2 drivers and allows to load them.
+Windows 9x as successors of NDIS 2 have backwards compatibility to NDIS 2 drivers and allow to load them.
 
 However, NDIS 3/4/5 were abandoned soon after official support for their respective operating systems had ceased.
 

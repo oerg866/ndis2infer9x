@@ -292,12 +292,12 @@ outInf.AddSection(nd2wrapRmvSection)
 
 nd2wrapInstReg = INFsection()
 nd2wrapInstReg.SetName('nd2wrap.inst.ndis2.reg')
-nd2wrapInstReg.AddData('HKLM,"Software\\Microsoft\\Windows\\CurrentVersion\\Network\\Real Mode Net",{driverFile},,low')
+nd2wrapInstReg.AddData(f'HKLM,"Software\\Microsoft\\Windows\\CurrentVersion\\Network\\Real Mode Net",{driverFile},,low')
 outInf.AddSection(nd2wrapInstReg)
 
 nd2wrapRmvReg = INFsection()
 nd2wrapRmvReg.SetName('nd2wrap.rmv.ndis2.reg')
-nd2wrapRmvReg.AddData('HKLM,"Software\\Microsoft\\Windows\\CurrentVersion\\Network\\Real Mode Net",{driverFile}')
+nd2wrapRmvReg.AddData(f'HKLM,"Software\\Microsoft\\Windows\\CurrentVersion\\Network\\Real Mode Net",{driverFile}')
 outInf.AddSection(nd2wrapRmvReg)
 
 nd2wrapCopyFiles = INFsection()

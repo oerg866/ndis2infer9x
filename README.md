@@ -22,6 +22,8 @@ Where
 * `--id` is a PCI ID in the format of `xxxx:yyyy:"name"` where xxxx is the PCI Vendor ID and yyyy is the PCI Device ID in hexadecimal format.
     * The `:"name"` part is optional and can be used to override the default device name pullled from `OEMSETUP.INF`
     * This parameter can be repeated multiple times for as many different IDs you wish to associate with this driver.
+* `--lookup` Looks up the device name for the ID in the pci.ids list
+* `--exclude <inf>` exclude PCI IDs that are already present in the INF file `<inf>`, useful for example to provide support for chips not covered by existing, older NDIS3/4/5 drivers.
 
 ### Example
 

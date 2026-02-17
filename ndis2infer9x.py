@@ -90,7 +90,7 @@ def ndisInfCharsParam(section: INFsection, paramName: str, valueRange:str, defau
     section.AddData(f'HKR,Ndi\\params\\{paramName},type,,edit')
 
 def getPciParamsFromArg(arg: str):
-    devSplit = id.split(':')
+    devSplit = arg.split(':')
 
     # If we have a third column (:"name") supplied
     if len(devSplit) == 3:

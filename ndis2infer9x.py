@@ -1,6 +1,7 @@
 import argparse
 import subprocess
 import sys
+import re
 
 from wininfparser import WinINF, INFsection
 
@@ -102,16 +103,113 @@ def getPciParamsFromArg(arg: str):
     
     return pciVen, pciDev, devName
 
+def getAdditionalPciIds(pciSection: INFsection) -> list[str]:
+    intelVen = getValue(pciSection, 'VENDOR_ID')
+
+    # Here we have a problem: The entries are separated by semicolon.
+    # But semicolons in INFs mean everything afterwards is a COMMENT. 
+    # So we have to stitch it back together manually XD
+
+    intelDevList = []
+    for key, value, comment in pciSection:
+        if key.lower() == 'device_id':
+            devListString = f'{value};{comment}'
+            intelDevList = devListString.split(';')
+
+    ret = []
+
+    for dev in intelDevList:
+        print(f'Adding extra PCI ID: {intelVen}:{dev}')
+        ret.append(f'{intelVen}:{dev}')
+    return ret
+
+# pci.ids parser for python
+# Written by SpareSimian
+# https://gist.github.com/SpareSimian/7ced6ec92eb6566e8a0acce5591af0b9
+def genPCIIdsDictionary():
+    re_vendor = re.compile(r'(?P<vendor>[a-z0-9]{4})\s+(?P<vendor_name>.*)')
+    re_device = re.compile(r'\t(?P<device>[a-z0-9]{4})\s+(?P<device_name>.*)')
+    re_subsys = re.compile(r'\t\t(?P<subvendor>[a-z0-9]{4})\s+(?P<subdevice>[a-z0-9]{4})\s+(?P<subsystem_name>.*)')
+
+    data = {}
+    vendor = ''
+    device = ''
+    
+    with open("pci.ids", "rt") as fp:
+        for line in fp:
+            m = re_vendor.match(line)
+            if m:
+                d = m.groupdict()
+                d['devices'] = {}
+                vendor = m.group('vendor')
+                data[vendor] = d
+            else:
+                m = re_device.match(line)
+                if m:
+                    d = m.groupdict()
+                    d['subdevices'] = []
+                    device = m.group('device')
+                    data[vendor]['devices'][device] = d
+                else:
+                    m = re_subsys.match(line)
+                    if m:
+                        data[vendor]['devices'][device]['subdevices'].append(m.groupdict())
+    return data
+
+def argToInfId(arg: str):
+    ven, dev, name = getPciParamsFromArg(arg)
+    return f'PCI\\VEN_{ven.upper()}&DEV_{dev.upper()}'
+
+def doesSectionContainString(section: INFsection, toFind: str) -> bool:
+    for key, value, comment in section:
+        if (value.find(toFind) >= 0):
+            return True
+    return False
+
+
+# Takes a ven:dev:name style string list and checks if the INF file infFileToFilter contains this ID
+# if yes, the string is removed from the output list
+def getFilteredPciIdsList(pciIds: list[str], infFileToFilter:str) ->list[str]:
+    newList = []
+    filterInf = WinINF()
+    filterInf.ParseFile(infFileToFilter)
+
+
+    print(filterInf.GetFileName())
+    print(filterInf.Sections())
+
+    for id in pciIds:
+        infId = argToInfId(id)
+        for s in filterInf:
+            if doesSectionContainString(s, infId):
+                # INF already contains this ID, so skip it
+                print(f'Skipping already existing PCI ID {infId}')
+                continue
+            else:
+                # Inf doesn't contain this ID! Hooray!
+                newList.append(id)
+                break
+                
+    return newList
+
+################################################################################################################################################
+
 parser = argparse.ArgumentParser(description='NDIS2 to Windows 9x INF converter v2.0', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-parser.add_argument('--id', type=str, help='PCI Vendor/device ID (hexadecimal string in the format of ven:dev:name i.e. "10EC:8139:"Realtek 8139 PCI Fast Ethernet"") - the ":name" part is optional, if not present it will use the default name', action="append", required=True)
+parser.add_argument('--id', type=str, help='PCI Vendor/device ID (hexadecimal string in the format of ven:dev:name i.e. "10EC:8139:"Realtek 8139 PCI Fast Ethernet"") - the ":name" part is optional, if not present it will use the default name', action="append", required=False)
 parser.add_argument('--inf', type=str, help='NDIS 2 driver OEMSETUP.INF file', required=True)
 parser.add_argument('--out', type=str, help='Windows 9x INF output file name', required=True)
+parser.add_argument('--lookup', help='Look up device names in pci.ids', required=False, default=False, action='store_true')
+parser.add_argument('--exclude', type=str, help='Exclude all PCI IDs found in this INF file', required=False)
 
 args = parser.parse_args()
 
+# Parse the PCI IDs table
+if args.lookup:
+    pciIdDict = genPCIIdsDictionary()
 
-# Read the configuration file
+
+# Read the OEMSETUP file
 
 inf = WinINF()
 inf.ParseFile(args.inf)
@@ -154,6 +252,27 @@ driverFile = splitInfValue(getValue(drvSection, 'device'))[0]
 print(f'Driver Name: {driverName}')
 print(f'Driver File: {driverFile}')
 
+# Parse additional PCI IDs from intel style INFs
+pciIds = list[str]()
+
+if args.id:
+    pciIds += args.id
+
+pciSection = getSection(inf, 'PCI')
+
+if pciSection:
+    print('Intel-Style Network Driver detected, adding PCI IDs')
+    pciIds += getAdditionalPciIds(pciSection)
+
+# Now we must check for exclusion
+
+if args.exclude:
+    pciIds = getFilteredPciIdsList(pciIds, args.exclude)
+
+# If we have nothing after that, we quit
+if len(pciIds) < 1:
+    raise Exception('No PCI IDs provided and none found in OEMSETUP!')
+
 # Create inf file
 outInf = WinINF()
 outVersion = INFsection()
@@ -179,8 +298,18 @@ outNd2wrap.SetName('ND2WRAP')
 # Iterate through every supplied ID (we have to do this again later for the NDI device reg key section)
 idCount = 0
 
-for id in args.id:
+
+for id in pciIds:
     pciVen, pciDev, pciName = getPciParamsFromArg(id)
+
+    # If we specified the lookup, we look up the PCI ID and get the name from pci.ids
+    if args.lookup:
+        pciVenL = pciVen.lower()
+        pciDevL = pciDev.lower()
+
+        if pciVenL in pciIdDict and pciDevL in pciIdDict[pciVenL]['devices']:
+            pciName = '"' + pciIdDict[pciVenL]['devices'][pciDevL]['device_name'] + ' (NDIS2)"'
+
     outNd2wrap.AddData(f'{pciName}', f'nd2wrap{idCount}.ndi,PCI\VEN_{pciVen}&DEV_{pciDev}')
     idCount +=1
 
@@ -202,7 +331,7 @@ idCount = 0
 ndiSections = list[INFsection]()
 regSections = list[INFsection]()
 
-for id in args.id:
+for id in pciIds:
     pciVen, pciDev, pciName = getPciParamsFromArg(id)
     tmpNdiSection = INFsection()
     tmpNdiSection.SetName(f'nd2wrap{idCount}.ndi')

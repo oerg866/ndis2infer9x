@@ -94,15 +94,23 @@ def ndisInfCharsParam(section: INFsection, paramName: str, valueRange:str, defau
 def getPciParamsFromArg(arg: str):
     devSplit = arg.split(':')
 
-    # If we have a third column (:"name") supplied
-    if len(devSplit) == 3:
-        devName = f'"{splitInfValue(devSplit[2])[0]} (NDIS2)"'
-    else:
-        devName = '%DEVICE%' # Use generic string pulled from OEMSETUP
+    pciSubsys = None
+    pciRev = None
+    pciName = '%DEVICE%'
+
+    if len(devSplit) < 2: raise Exception('ID parameter requires at least Vendor and Device ID')
+
     pciVen = devSplit[0]
     pciDev = devSplit[1]
+
+    if len(devSplit) >= 3: pciSubsys = devSplit[2].strip()
+    if len(devSplit) >= 4: pciRev    = devSplit[3].strip()
+    if len(devSplit) >= 5: pciName   = f'"{splitInfValue(devSplit[2])[0].strip()} (NDIS2)"'
+
+    if pciSubsys and len(pciSubsys) == 0: pciSubsys = None
+    if pciRev    and len(pciRev)    == 0: pciRev    = None
     
-    return pciVen, pciDev, devName
+    return pciVen, pciDev, pciSubsys, pciRev, pciName
 
 def getAdditionalPciIds(pciSection: INFsection) -> list[str]:
     intelVen = getValue(pciSection, 'VENDOR_ID')
@@ -158,8 +166,14 @@ def genPCIIdsDictionary():
     return data
 
 def argToInfId(arg: str):
-    ven, dev, name = getPciParamsFromArg(arg)
-    return f'PCI\\VEN_{ven.upper()}&DEV_{dev.upper()}'
+    ven, dev, subsys, rev, name = getPciParamsFromArg(arg)
+
+    infID = f'PCI\\VEN_{ven.upper()}&DEV_{dev.upper()}'
+
+    if subsys: infID += f'&SUBSYS_{subsys.upper()}'
+    if rev:    infID += f'&REV_{rev.upper()}'
+
+    return infID
 
 def doesLineInListContain(lines: list[str], toFind: str):
     for line in lines:
@@ -208,7 +222,7 @@ def getFilenameCaseInsensitive(sourceDir: str, filename: str):
 
 parser = argparse.ArgumentParser(description='NDIS2 to Windows 9x INF converter v2.0', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-parser.add_argument('--id', type=str, help='PCI Vendor/device ID (hexadecimal string in the format of ven:dev:name i.e. "10EC:8139:"Realtek 8139 PCI Fast Ethernet"") - the ":name" part is optional, if not present it will use the default name', action="append", required=False)
+parser.add_argument('--id', type=str, help='PCI Vendor/device ID (hexadecimal string in the format of ven:dev:subsys:rev:name, params can be skipped, i.e. "10EC:8139::4:"Realtek 8139 PCI Fast Ethernet"") - the ":name" part is optional, if not present it will use the default name', action="append", required=False)
 parser.add_argument('--inf', type=str, help='NDIS 2 driver OEMSETUP.INF file')
 parser.add_argument('--dir', type=str, help='NDIS 2 driver dir containing OEMSETUP.INF file')
 parser.add_argument('--out', type=str, help='Windows 9x INF output file name', required=True)
@@ -332,7 +346,7 @@ idCount = 0
 
 
 for id in pciIds:
-    pciVen, pciDev, pciName = getPciParamsFromArg(id)
+    pciVen, pciDev, pciSubsys, pciRev, pciName = getPciParamsFromArg(id)
 
     # If we specified the lookup, we look up the PCI ID and get the name from pci.ids
     if args.lookup:
@@ -342,7 +356,7 @@ for id in pciIds:
         if pciVenL in pciIdDict and pciDevL in pciIdDict[pciVenL]['devices']:
             pciName = '"' + pciIdDict[pciVenL]['devices'][pciDevL]['device_name'] + ' (NDIS2)"'
 
-    outNd2wrap.AddData(f'{pciName}', f'nd2wrap{idCount}.ndi,PCI\VEN_{pciVen}&DEV_{pciDev}')
+    outNd2wrap.AddData(f'{pciName}', f'nd2wrap{idCount}.ndi,{argToInfId(id)}')
     idCount +=1
 
 outInf.AddSection(outNd2wrap)
@@ -364,7 +378,7 @@ ndiSections = list[INFsection]()
 regSections = list[INFsection]()
 
 for id in pciIds:
-    pciVen, pciDev, pciName = getPciParamsFromArg(id)
+    pciVen, pciDev, pciSubsys, pciRev, pciName = getPciParamsFromArg(id)
     tmpNdiSection = INFsection()
     tmpNdiSection.SetName(f'nd2wrap{idCount}.ndi')
     tmpNdiSection.AddData(f'AddReg', f'nd2wrap{idCount}.ndi.reg,nd2wrap.ndi.reg')
@@ -372,7 +386,7 @@ for id in pciIds:
 
     tmpRegSection = INFsection()
     tmpRegSection.SetName(f'nd2wrap{idCount}.ndi.reg')
-    tmpRegSection.AddData(f'HKR,Ndi,DeviceID,,"PCI\VEN_{pciVen}&DEV_{pciDev}"')
+    tmpRegSection.AddData(f'HKR,Ndi,DeviceID,,"{argToInfId(id)}"')
     ndiSections.append(tmpRegSection)
     idCount +=1
 

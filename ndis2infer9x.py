@@ -435,6 +435,10 @@ for key, value, comment in nifSection:
     default = splitParam[4]
     flags = int(splitParam[5], base=0)
 
+    if paramType == 'static': 
+        print('Skipping unimplemented "static" param')
+        continue
+
     nd2wrapNdiRegSection.AddComment(f'Original NDIS2 Parameter: {value}')
     nd2wrapNdiRegSection.AddData(f'HKR,Ndi\\params\\{paramName},ParamDesc,,"{paramDesc}"')
 

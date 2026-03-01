@@ -1,3 +1,4 @@
+import os
 import argparse
 import subprocess
 import sys
@@ -160,10 +161,9 @@ def argToInfId(arg: str):
     ven, dev, name = getPciParamsFromArg(arg)
     return f'PCI\\VEN_{ven.upper()}&DEV_{dev.upper()}'
 
-def doesSectionContainString(section: INFsection, toFind: str) -> bool:
-    for key, value, comment in section:
-        if (value.find(toFind) >= 0):
-            return True
+def doesLineInListContain(lines: list[str], toFind: str):
+    for line in lines:
+        if toFind in line: return True
     return False
 
 
@@ -174,21 +174,21 @@ def getFilteredPciIdsList(pciIds: list[str], infFileToFilter:str) ->list[str]:
     filterInf = WinINF()
     filterInf.ParseFile(infFileToFilter)
 
-
-    print(filterInf.GetFileName())
-    print(filterInf.Sections())
+    allInfLines = []
+    for section in filterInf:
+        for k, v, c in section:
+            stripped = v.strip()
+            if len(v.strip()) > 0:
+                allInfLines.append(v.lower())
 
     for id in pciIds:
-        infId = argToInfId(id)
-        for s in filterInf:
-            if doesSectionContainString(s, infId):
-                # INF already contains this ID, so skip it
-                print(f'Skipping already existing PCI ID {infId}')
-                continue
-            else:
-                # Inf doesn't contain this ID! Hooray!
-                newList.append(id)
-                break
+        infId = argToInfId(id).lower()
+        if (doesLineInListContain(allInfLines, infId)):
+            # INF already contains this ID, so skip it
+            print(f'Skipping already existing PCI ID {infId}')
+        else:
+            # Inf doesn't contain this ID! Hooray!
+            newList.append(id)
                 
     return newList
 

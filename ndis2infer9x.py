@@ -105,7 +105,7 @@ def getPciParamsFromArg(arg: str):
 
     if len(devSplit) >= 3: pciSubsys = devSplit[2].strip()
     if len(devSplit) >= 4: pciRev    = devSplit[3].strip()
-    if len(devSplit) >= 5: pciName   = f'"{splitInfValue(devSplit[2])[0].strip()} (NDIS2)"'
+    if len(devSplit) >= 5: pciName   = f'"{splitInfValue(devSplit[4])[0].strip()} (NDIS2)"'
 
     if pciSubsys and len(pciSubsys) == 0: pciSubsys = None
     if pciRev    and len(pciRev)    == 0: pciRev    = None

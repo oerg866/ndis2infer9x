@@ -192,27 +192,59 @@ def getFilteredPciIdsList(pciIds: list[str], infFileToFilter:str) ->list[str]:
                 
     return newList
 
+# Get a correctly capitalized filename in the source directory (so a case insensitive lookup)
+def getFilenameCaseInsensitive(sourceDir: str, filename: str):
+    if not os.path.exists(sourceDir):
+        raise Exception(f"Source directory {sourceDir} doesn't exist?!")
+
+    for f in os.listdir(sourceDir):
+        if f.lower() == filename.lower():
+            # File name matches, return full path
+            return os.path.join(sourceDir, f)
+
+    return None
+
 ################################################################################################################################################
 
 parser = argparse.ArgumentParser(description='NDIS2 to Windows 9x INF converter v2.0', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument('--id', type=str, help='PCI Vendor/device ID (hexadecimal string in the format of ven:dev:name i.e. "10EC:8139:"Realtek 8139 PCI Fast Ethernet"") - the ":name" part is optional, if not present it will use the default name', action="append", required=False)
-parser.add_argument('--inf', type=str, help='NDIS 2 driver OEMSETUP.INF file', required=True)
+parser.add_argument('--inf', type=str, help='NDIS 2 driver OEMSETUP.INF file')
+parser.add_argument('--dir', type=str, help='NDIS 2 driver dir containing OEMSETUP.INF file')
 parser.add_argument('--out', type=str, help='Windows 9x INF output file name', required=True)
+parser.add_argument('--rel', action='store_true', help='Treat --out parameter as relative to source directory', default=False)
 parser.add_argument('--lookup', help='Look up device names in pci.ids', required=False, default=False, action='store_true')
 parser.add_argument('--exclude', type=str, help='Exclude all PCI IDs found in this INF file', required=False)
 
 args = parser.parse_args()
 
+if args.inf is None and args.dir is None:
+    raise Exception('Need either --inf or --dir parameter')
+
+if args.inf and args.dir:
+    raise Exception('--inf and --dir cannot be specified together')
+
+if args.dir:
+    infFile = getFilenameCaseInsensitive(args.dir, 'oemsetup.inf')
+else:
+    infFile = args.inf
+
+if args.rel:
+    outFile = os.path.join(os.path.dirname(os.path.abspath(infFile)), args.out)
+else:
+    outFile = args.out
+
+if infFile is None or os.path.exists(infFile) == False:
+    raise Exception('Cannot find OEMSETUP.INF')
+
 # Parse the PCI IDs table
 if args.lookup:
     pciIdDict = genPCIIdsDictionary()
 
-
 # Read the OEMSETUP file
 
 inf = WinINF()
-inf.ParseFile(args.inf)
+inf.ParseFile(infFile)
 
 # Get netcard section.
 netcardSec = getSection(inf, 'netcard')
@@ -450,5 +482,5 @@ outInf.AddSection(strings)
 for s in outInf:
     s.AddData('')
 
-outInf.Save(args.out, 'cp1252')
+outInf.Save(outFile, 'cp1252')
 

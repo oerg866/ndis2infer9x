@@ -13,12 +13,14 @@ This allows the Windows 9x hardware installation wizard / hardware detection to 
 
 ## Usage
 
-`python3 ndis2infer9x.py --inf [OEMSETUP_INF] --out [OUTPUT_INF_FILE_NAME] --id xxxx:yyyy:"name" --id wwww:zzzz:"name2" ...`
+`python3 ndis2infer9x.py [--inf [OEMSETUP_INF] or --dir [DIR_WITH_OEMSETUP_INF]] [--rel] --out [OUTPUT_INF_FILE_NAME] --id xxxx:yyyy:"name" --id wwww:zzzz:"name2" ...`
 
 Where
 
-* `--inf` points to the input OEMSETUP.INF file
+* `--dir` points to a driver directory containing an OEMSETUP.INF file   
+  **OR** `--inf` points to an OEMSETUP.INF file
 * `--out` is the filename for the generated INF file
+* `--rel` indicates taht the `--out` parameter is relative to `--dir`
 * `--id` is a PCI ID in the format of `xxxx:yyyy:"name"` where xxxx is the PCI Vendor ID and yyyy is the PCI Device ID in hexadecimal format.
     * The `:"name"` part is optional and can be used to override the default device name pullled from `OEMSETUP.INF`
     * This parameter can be repeated multiple times for as many different IDs you wish to associate with this driver.
@@ -59,4 +61,4 @@ At the time of release of these systems, some cards, due to lack of time to deve
 
 ## License
 
-CC-BY-NC 3.0
+CC-BY-NC-SA 4.0
